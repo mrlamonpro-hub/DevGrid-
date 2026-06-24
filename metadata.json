@@ -1,0 +1,6 @@
+{
+  "name": "DevGrid Services",
+  "description": "Professional Discord server and Minecraft setup, low-cost hosting, branding, and custom web development services.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
