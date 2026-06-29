@@ -1,0 +1,27 @@
+{
+  "collections": {
+    "users": {
+      "documents": {
+        "userId": {
+          "fields": {
+            "username": "string",
+            "email": "string",
+            "isAdmin": "boolean",
+            "role": "string",
+            "createdAt": "timestamp"
+          }
+        }
+      }
+    },
+    "logs": {
+      "documents": {
+        "logId": {
+          "fields": {
+            "email": "string",
+            "timestamp": "timestamp"
+          }
+        }
+      }
+    }
+  }
+}

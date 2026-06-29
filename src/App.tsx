@@ -24,7 +24,8 @@ import {
   Info,
   Layers,
   Heart,
-  FileText
+  FileText,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import DiscordWidget from './components/DiscordWidget';
@@ -32,9 +33,30 @@ import ServicesPanel from './components/ServicesPanel';
 import ProcessFlow from './components/ProcessFlow';
 import DevGridAIWidget from './components/DevGridAIWidget';
 import DevGridLogo from './components/DevGridLogo';
+import Login from './components/auth/Login';
+import Register from './components/auth/Register';
+import AdminPanel from './components/admin/AdminPanel';
+import Navbar from './components/Navbar';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 export default function App() {
-  const [activePage, setActivePage] = useState<'home' | 'services' | 'inquiry' | 'account'>('home');
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
+function AppContent() {
+  const { user, loading, logout } = useAuth();
+  const [activePage, setActivePage] = useState<'home' | 'services' | 'inquiry' | 'account' | 'login' | 'register' | 'admin-logs'>('home');
+
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authSuccess, setAuthSuccess] = useState<string | null>(null);
 
   const [supportQuestion, setSupportQuestion] = useState('');
   const [supportChat, setSupportChat] = useState<Array<{ sender: 'user' | 'bot'; text: string; time: string }>>([
@@ -45,179 +67,35 @@ export default function App() {
     }
   ]);
 
-  // Auth States
-  const [isAdminLoginVisible, setIsAdminLoginVisible] = useState(false);
-  const [users, setUsers] = useState<Array<{ email: string; name: string; password?: string; isGoogle?: boolean }>>(() => {
-    const saved = localStorage.getItem('devgrid_registered_users');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // use default
-      }
-    }
-    return [
-      { email: 'mr.lamonpro@gmail.com', name: 'LamonPro', password: 'devgrid70' },
-      { email: 'mat576907@gmail.com', name: 'Mat', password: 'devgrid70' }
-    ];
-  });
-
-  const [currentUser, setCurrentUser] = useState<{ email: string; name: string; isGoogle?: boolean } | null>(() => {
-    const saved = localStorage.getItem('devgrid_logged_user');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        // use default
-      }
-    }
-    return null;
-  });
-
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
-  const [authEmail, setAuthEmail] = useState('');
-  const [authName, setAuthName] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [authSuccess, setAuthSuccess] = useState<string | null>(null);
-
-  // Google Login Popup Simulation
   const [showGooglePopup, setShowGooglePopup] = useState(false);
-
-  // Contact Us email copies
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
-
-  // Contact Page Form State
   const [contactName, setContactName] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactMsg, setContactMsg] = useState('');
   const [contactStatus, setContactStatus] = useState<string | null>(null);
 
-  // Save users to localStorage
-  useEffect(() => {
-    localStorage.setItem('devgrid_registered_users', JSON.stringify(users));
-  }, [users]);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4">
+        <div className="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin" />
+        <p className="text-slate-500 font-mono text-xs uppercase tracking-widest animate-pulse">Initializing DevGrid Core...</p>
+      </div>
+    );
+  }
 
-  // Save logged user
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('devgrid_logged_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('devgrid_logged_user');
-    }
-  }, [currentUser]);
+  const currentUser = user;
 
-  // Handle Registration
-  const handleRegisterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    setAuthSuccess(null);
-
-    const emailNorm = authEmail.trim().toLowerCase();
-    if (!emailNorm || !authName.trim() || !authPassword) {
-      setAuthError('Please fill in all standard fields.');
-      return;
-    }
-
-    // Check if email already exists
-    const exists = users.some(u => u.email.toLowerCase() === emailNorm);
-    if (exists) {
-      setAuthError('Email is already registered, please try to login.');
-      return;
-    }
-
-    const newUser = {
-      email: emailNorm,
-      name: authName.trim(),
-      password: authPassword
-    };
-
-    setUsers(prev => [...prev, newUser]);
-    setCurrentUser(newUser);
-    setAuthSuccess('Account registered successfully! Redirecting you to your account panel...');
-    
-    // Clear form
-    setAuthEmail('');
-    setAuthName('');
-    setAuthPassword('');
-
-    // Redirect to account dashboard
-    setTimeout(() => {
-      setAuthSuccess(null);
-      setActivePage('account');
-    }, 1500);
-  };
-
-  // Handle Admin Login
-  const handleAdminLoginSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    setAuthSuccess(null);
-
-    const emailNorm = authEmail.trim().toLowerCase();
-    const isAdminEmail = emailNorm === 'mr.lamonpro@gmail.com' || emailNorm === 'mat576907@gmail.com';
-
-    if (!isAdminEmail) {
-      setAuthError('Access denied. This portal is restricted to authorized Administrators only.');
-      return;
-    }
-
-    if (authPassword !== 'devgrid70') {
-      setAuthError('Incorrect administrator password. Access denied.');
-      return;
-    }
-
-    const adminUser = {
-      email: emailNorm,
-      name: emailNorm === 'mr.lamonpro@gmail.com' ? 'LamonPro' : 'Mat',
-      role: 'Administrator'
-    };
-
-    setCurrentUser(adminUser);
-    setAuthSuccess('Administrator authenticated successfully! Redirecting you to the system panel...');
-    setAuthEmail('');
-    setAuthPassword('');
-
-    setTimeout(() => {
-      setAuthSuccess(null);
-      setActivePage('account');
-    }, 1500);
-  };
-
-  // Google Login Simulation
+  // Simulated Google SSO Handler (Disabled for now, will integrate with Firebase later)
   const handleGoogleSSO = (email: string, name: string) => {
-    setAuthError(null);
-    setShowGooglePopup(false);
-
-    // If exists, login, otherwise register on-the-fly
-    const emailNorm = email.trim().toLowerCase();
-    const exists = users.find(u => u.email.toLowerCase() === emailNorm);
-
-    if (exists) {
-      setCurrentUser(exists);
-      setAuthSuccess(`Welcome back, logged in as ${name}!`);
-    } else {
-      const newUser = {
-        email: emailNorm,
-        name: name,
-        isGoogle: true
-      };
-      setUsers(prev => [...prev, newUser]);
-      setCurrentUser(newUser);
-      setAuthSuccess(`Account registered via Google! Welcome ${name}.`);
-    }
-
-    setTimeout(() => {
-      setAuthSuccess(null);
-      setActivePage('account');
-    }, 1500);
+    setAuthError('Google SSO is temporarily disabled. Please use email/password.');
   };
 
-  const handleLogOut = () => {
-    setCurrentUser(null);
+  const handleLogOut = async () => {
+    await logout();
     setActivePage('home');
   };
 
+  // Navigation and UI handlers
   const handleCopyEmail = (email: string) => {
     navigator.clipboard.writeText(email);
     setCopiedEmail(email);
@@ -275,86 +153,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-indigo-500 selection:text-white overflow-x-hidden">
+      <Navbar setActivePage={setActivePage} activePage={activePage} />
       
       {/* Dynamic Ambient Blur Blobs */}
       <div className="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute top-[40%] right-[-15%] w-[45vw] h-[45vw] bg-purple-500/5 rounded-full blur-[140px] pointer-events-none" />
       <div className="absolute bottom-[-10%] left-[10%] w-[40vw] h-[40vw] bg-emerald-500/5 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* Top Header Navigation (Homes, Services Catalog, Live Status, Inquiry Desk) */}
-      <nav className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md border-b border-slate-900 px-4 py-3.5">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          
-          {/* Logo Brand */}
-          <div className="flex items-center gap-3 cursor-pointer animate-fade-in" onClick={() => setActivePage('home')}>
-            <DevGridLogo className="w-10 h-10 shadow-lg shadow-indigo-500/10" />
-            <div>
-              <span className="font-display font-extrabold text-base tracking-tight text-white block">
-                DevGrid <span className="text-indigo-400">Services</span>
-              </span>
-              <span className="text-[10px] text-slate-500 font-mono tracking-wider block uppercase leading-none">
-                Elite Setup Agency
-              </span>
-            </div>
-          </div>
 
-          {/* Navigation Categories */}
-          <div className="hidden md:flex items-center gap-6 text-sm font-semibold">
-            <button
-              id="nav-homes"
-              onClick={() => setActivePage('home')}
-              className={`transition-colors ${activePage === 'home' ? 'text-indigo-400' : 'text-slate-300 hover:text-white'}`}
-            >
-              Homes
-            </button>
-            <button
-              id="nav-services"
-              onClick={() => setActivePage('services')}
-              className={`transition-colors ${activePage === 'services' ? 'text-indigo-400' : 'text-slate-300 hover:text-white'} cursor-pointer`}
-            >
-              Services Catalog
-            </button>
-            <button
-              id="nav-inquiry"
-              onClick={() => setActivePage('inquiry')}
-              className={`transition-colors ${activePage === 'inquiry' ? 'text-indigo-400' : 'text-slate-300 hover:text-white'} cursor-pointer`}
-            >
-              Inquiry Desk
-            </button>
-          </div>
-
-          {/* Right actions (Account, Join Discord) */}
-          <div className="flex items-center gap-3">
-            {currentUser ? (
-              <button
-                onClick={() => setActivePage('account')}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-950/50 text-indigo-300 text-xs font-semibold border border-indigo-500/20 hover:bg-indigo-900/30 transition-all"
-              >
-                <User className="w-3.5 h-3.5" />
-                Hi, {currentUser.name}
-              </button>
-            ) : (
-              <button
-                onClick={() => { setIsAdminLoginVisible(true); setActivePage('inquiry'); }}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 text-slate-300 text-xs font-semibold border border-slate-800 hover:bg-slate-850 hover:text-white transition-all"
-              >
-                <Lock className="w-3.5 h-3.5 text-indigo-400" />
-                Admin Portal
-              </button>
-            )}
-
-            <a
-              href="https://discord.gg/EJSvQU8cn9"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/25 active:scale-[0.98]"
-            >
-              Join Discord
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
-        </div>
-      </nav>
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 py-8 md:py-12 flex-grow w-full relative z-10 space-y-12">
@@ -567,18 +373,18 @@ export default function App() {
                       <div className="bg-slate-950/60 rounded-xl border border-slate-850 p-4 mt-5 space-y-3">
                         <div className="flex items-center gap-3">
                           <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xs">
-                            {currentUser.name.substring(0, 2).toUpperCase()}
+                            {currentUser.username.substring(0, 2).toUpperCase()}
                           </div>
                           <div>
-                            <span className="text-xs font-bold text-white block">{currentUser.name}</span>
+                            <span className="text-xs font-bold text-white block">{currentUser.username}</span>
                             <span className="text-[10px] text-indigo-400 block font-mono">{currentUser.email}</span>
                           </div>
                         </div>
                         <button
-                          onClick={() => setActivePage('account')}
+                          onClick={() => setActivePage(user?.isAdmin ? 'admin-logs' : 'account')}
                           className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                         >
-                          View Admin Panel
+                          View {user?.isAdmin ? 'Admin' : 'Account'} Panel
                           <ChevronRight className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -598,7 +404,7 @@ export default function App() {
                             <ExternalLink className="w-3.5 h-3.5" />
                           </a>
                           <button
-                            onClick={() => { setIsAdminLoginVisible(true); setActivePage('inquiry'); }}
+                            onClick={() => setActivePage('admin-login')}
                             className="w-full py-2.5 bg-slate-850 hover:bg-slate-800 text-slate-300 rounded-lg text-xs font-semibold transition-all border border-slate-800 flex items-center justify-center gap-1 cursor-pointer"
                           >
                             <Lock className="w-3 h-3 text-indigo-400" />
@@ -669,330 +475,82 @@ export default function App() {
             </motion.div>
           )}
 
-          {/* 4. INQUIRY DESK & CONTACT US PAGE */}
+          {/* 5. AUTH PAGES */}
+          {activePage === 'login' && <Login setActivePage={setActivePage} />}
+          {activePage === 'register' && <Register setActivePage={setActivePage} />}
+          {activePage === 'admin-logs' && user?.isAdmin ? <AdminPanel /> : null}
+
+          {/* 6. INQUIRY DESK PAGE */}
           {activePage === 'inquiry' && (
             <motion.div
               key="inquiry-page"
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
-              className="space-y-10"
+              className="max-w-4xl mx-auto space-y-8"
             >
-              
-              {/* Top Dual Cards: Auth State/Gate + Inquiry Desk */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                
-                {/* Left: Contact Form & Emails Display */}
-                <div className="lg:col-span-7 space-y-6">
-                  
-                  {/* Contact Emails Card */}
-                  <div className="bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 p-6 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
-                    
-                    <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-                      <Mail className="w-5 h-5 text-indigo-400" />
-                      Contact Us Direct Support
-                    </h3>
-                    <p className="text-xs text-slate-400 mb-6">
-                      Have personal questions or custom setup contracts? Reach out to us directly at either of our official emails.
-                    </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      
-                      {/* Email 1 */}
-                      <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-850 flex flex-col justify-between group">
-                        <div>
-                          <span className="text-[10px] font-mono text-indigo-400 font-bold block uppercase tracking-wider">Primary Email</span>
-                          <span className="text-sm font-semibold text-white block mt-1.5 truncate">Mr.lamonpro@gmail.com</span>
-                        </div>
-                        <button
-                          onClick={() => handleCopyEmail('Mr.lamonpro@gmail.com')}
-                          className="mt-4 py-1.5 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-xs font-semibold text-slate-300 transition-colors flex items-center justify-center gap-1.5"
-                        >
-                          {copiedEmail === 'Mr.lamonpro@gmail.com' ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copy Email</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Email 2 */}
-                      <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-850 flex flex-col justify-between group">
-                        <div>
-                          <span className="text-[10px] font-mono text-purple-400 font-bold block uppercase tracking-wider">Administration</span>
-                          <span className="text-sm font-semibold text-white block mt-1.5 truncate">mat576907@gmail.com</span>
-                        </div>
-                        <button
-                          onClick={() => handleCopyEmail('mat576907@gmail.com')}
-                          className="mt-4 py-1.5 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-xs font-semibold text-slate-300 transition-colors flex items-center justify-center gap-1.5"
-                        >
-                          {copiedEmail === 'mat576907@gmail.com' ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>Copied!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copy Email</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                    </div>
-                  </div>
-
-                  {/* Standard Contact Us Form */}
-                  <div className="bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 p-6">
-                    <h3 className="text-lg font-bold text-white mb-2">Send Secure Message</h3>
-                    <p className="text-xs text-slate-400 mb-5">Have custom specifications? Drop us a line and we will review immediately.</p>
-                    
-                    <form onSubmit={handleContactSubmit} className="space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Your Name:</label>
-                          <input
-                            type="text"
-                            required
-                            value={contactName}
-                            onChange={(e) => setContactName(e.target.value)}
-                            placeholder="e.g. John Doe"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Your Email:</label>
-                          <input
-                            type="email"
-                            required
-                            value={contactEmail}
-                            onChange={(e) => setContactEmail(e.target.value)}
-                            placeholder="e.g. customer@domain.com"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Inquiry Details:</label>
-                        <textarea
-                          required
-                          rows={3}
-                          value={contactMsg}
-                          onChange={(e) => setContactMsg(e.target.value)}
-                          placeholder="Write your custom Minecraft plugin, VPS, graphics design, or website development requirements here..."
-                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 leading-relaxed"
-                        />
-                      </div>
-
-                      {contactStatus && (
-                        <div className={`p-3 rounded-lg text-xs font-semibold ${
-                          contactStatus.includes('Thank') ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-950 text-slate-400'
-                        }`}>
-                          {contactStatus}
-                        </div>
-                      )}
-
-                      <button
-                        type="submit"
-                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        Send Inquiry
-                        <Send className="w-3.5 h-3.5" />
-                      </button>
-                    </form>
-                  </div>
-
-                </div>
-
-                {/* Right: Registration System Block */}
-                <div className="lg:col-span-5">
-                  <div className="bg-slate-900/80 backdrop-blur-md rounded-2xl border border-slate-800 p-6 shadow-xl relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-                    
-                    {currentUser ? (
-                      // Logged In Dashboard Overview
-                      <div className="space-y-6 py-2">
-                        <div className="text-center">
-                          <div className="w-16 h-16 rounded-full bg-indigo-600 flex items-center justify-center font-bold text-white text-xl mx-auto mb-3 shadow-lg shadow-indigo-600/30">
-                            {currentUser.name.substring(0, 2).toUpperCase()}
-                          </div>
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-1">
-                            Administrator Profile
-                          </span>
-                          <h3 className="text-lg font-bold text-white">{currentUser.name}</h3>
-                          <p className="text-xs text-slate-400 mt-0.5 font-mono">{currentUser.email}</p>
-                        </div>
-
-                        <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-850 space-y-3.5">
-                          <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">Your DevGrid Status</h4>
-                          <div className="grid grid-cols-2 gap-3.5 text-xs">
-                            <div className="bg-slate-900/60 p-2.5 rounded border border-slate-800">
-                              <span className="text-[10px] text-slate-500 block">Total Orders</span>
-                              <span className="text-base font-extrabold text-indigo-400 block mt-0.5">0 Active</span>
-                            </div>
-                            <div className="bg-slate-900/60 p-2.5 rounded border border-slate-800">
-                              <span className="text-[10px] text-slate-500 block">Service Tier</span>
-                              <span className="text-base font-extrabold text-emerald-400 block mt-0.5">Premium</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <button
-                            onClick={() => setActivePage('account')}
-                            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5"
-                          >
-                            Enter Account Desk
-                            <ChevronRight className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={handleLogOut}
-                            className="w-full py-2.5 bg-slate-950 hover:bg-slate-900 text-slate-400 hover:text-white rounded-lg text-xs font-semibold transition-all border border-slate-900 flex items-center justify-center gap-1.5"
-                          >
-                            <LogOut className="w-3.5 h-3.5" />
-                            Log Out
-                          </button>
-                        </div>
-                      </div>
-                    ) : !isAdminLoginVisible ? (
-                      // Support Hub Panel for ordinary clients
-                      <div className="space-y-5">
-                        <div className="w-12 h-12 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center">
-                          <Terminal className="w-6 h-6" />
-                        </div>
-                        
-                        <div>
-                          <h4 className="text-xs font-bold uppercase tracking-widest text-indigo-400 mb-1 font-mono">
-                            CLIENT SUPPORT & SETUP CODES
-                          </h4>
-                          <h3 className="text-lg font-bold text-white">How To Order Configurations</h3>
-                        </div>
-
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                          We do not accept standard sign-ups. All custom server build configurations, deployment requests, and graphics orders are handled securely through direct tickets on our Discord server.
-                        </p>
-
-                        <div className="bg-slate-950/60 rounded-xl border border-slate-850 p-4 space-y-3">
-                          <div className="flex items-start gap-2.5 text-xs text-slate-300">
-                            <span className="text-indigo-400 font-mono font-bold mt-0.5">01.</span>
-                            <span>Design your setup order or configuration via the <strong>Services Catalog</strong>.</span>
-                          </div>
-                          <div className="flex items-start gap-2.5 text-xs text-slate-300">
-                            <span className="text-indigo-400 font-mono font-bold mt-0.5">02.</span>
-                            <span>Copy the inquiry details or setup specs from the <strong>Inquiry Desk</strong>.</span>
-                          </div>
-                          <div className="flex items-start gap-2.5 text-xs text-slate-300">
-                            <span className="text-indigo-400 font-mono font-bold mt-0.5">03.</span>
-                            <span>Join Discord and open an instant ticket. Share the specs with engineers!</span>
-                          </div>
-                        </div>
-
-                        <div className="pt-2">
-                          <a
-                            href="https://discord.gg/EJSvQU8cn9"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold text-center transition-all flex items-center justify-center gap-1.5 shadow"
-                          >
-                            <span>Join DevGrid Discord Server</span>
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
-                        </div>
-
-                        <div className="text-center pt-3 border-t border-slate-850/60">
-                          <button
-                            onClick={() => { setIsAdminLoginVisible(true); setAuthError(null); setAuthSuccess(null); }}
-                            className="text-xs font-semibold text-slate-500 hover:text-indigo-400 transition-colors"
-                          >
-                            If you are an admin click here
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      // Admin Login Form
-                      <div>
-                        <div className="flex items-center gap-2 mb-4">
-                          <Lock className="w-4 h-4 text-indigo-400" />
-                          <h4 className="text-xs font-bold uppercase tracking-widest text-indigo-400 font-mono">
-                            ADMINISTRATOR ACCESS
-                          </h4>
-                        </div>
-                        
-                        <h3 className="text-base font-bold text-white mb-1.5">Secure Admin Console</h3>
-                        <p className="text-xs text-slate-400 mb-5 leading-relaxed">
-                          Please sign in with your authorized administrator email and password key to access deployment logs.
-                        </p>
-
-                        <form onSubmit={handleAdminLoginSubmit} className="space-y-4">
-                          <div>
-                            <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Admin Email Address:</label>
-                            <input
-                              type="email"
-                              required
-                              value={authEmail}
-                              onChange={(e) => setAuthEmail(e.target.value)}
-                              placeholder="e.g. mr.lamonpro@gmail.com"
-                              className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-700 focus:outline-none focus:border-indigo-500 font-mono"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Security Password Key:</label>
-                            <input
-                              type="password"
-                              required
-                              value={authPassword}
-                              onChange={(e) => setAuthPassword(e.target.value)}
-                              placeholder="••••••••"
-                              className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-750 focus:outline-none focus:border-indigo-500"
-                            />
-                          </div>
-
-                          {/* Error & Success Alerts */}
-                          {authError && (
-                            <div className="p-3 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg text-xs font-semibold leading-relaxed">
-                              ⚠️ {authError}
-                            </div>
-                          )}
-
-                          {authSuccess && (
-                            <div className="p-3 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-semibold leading-relaxed animate-pulse">
-                              ✅ {authSuccess}
-                            </div>
-                          )}
-
-                          <button
-                            type="submit"
-                            className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-all shadow-md shadow-indigo-600/15"
-                          >
-                            Authenticate Admin
-                          </button>
-                        </form>
-
-                        <div className="text-center pt-5 mt-4 border-t border-slate-850/60">
-                          <button
-                            onClick={() => { setIsAdminLoginVisible(false); setAuthError(null); setAuthSuccess(null); }}
-                            className="text-xs font-semibold text-slate-400 hover:text-white transition-colors flex items-center justify-center gap-1.5 mx-auto"
-                          >
-                            ← Back to Client Info
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
+              <div className="text-center space-y-3">
+                <h2 className="text-3xl font-extrabold text-white tracking-tight">Inquiry & Support Desk</h2>
+                <p className="text-slate-400 text-sm max-w-lg mx-auto leading-relaxed">
+                  Have a custom requirement? Need a specialized bot or server setup? Our team is standing by to help you build your digital infrastructure.
+                </p>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Contact Options */}
+                <div className="space-y-6">
+                  <div className="bg-indigo-600/10 border border-indigo-500/20 p-6 rounded-2xl text-center space-y-4">
+                    <p className="text-sm text-slate-300 font-semibold mb-2">Join our growing community!</p>
+                    <p className="text-[11px] text-slate-400 leading-relaxed italic">
+                      "For the fastest response time, join our Discord community and open a support ticket. We usually respond within 15-30 minutes."
+                    </p>
+                    <a
+                      href="https://discord.gg/EJSvQU8cn9"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20"
+                    >
+                      Join DevGrid Discord
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Interactive Bot */}
+                <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl flex flex-col h-full min-h-[400px]">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      <h3 className="text-white font-bold text-sm">Quick Assist Bot</h3>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-500 uppercase">Interactive</span>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-4 mb-6 pr-2 scrollbar-hide">
+                    {supportChat.map((msg, idx) => (
+                      <div key={idx} className={`flex ${msg.sender === 'bot' ? 'justify-start' : 'justify-end'}`}>
+                        <div className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed ${msg.sender === 'bot' ? 'bg-slate-950 text-slate-300 border border-slate-900' : 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/10'}`}>
+                          {msg.text}
+                          <span className="block text-[9px] mt-1 opacity-50 text-right font-mono">{msg.time}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <form onSubmit={handleSupportSubmit} className="relative">
+                    <input
+                      type="text"
+                      value={supportQuestion}
+                      onChange={(e) => setSupportQuestion(e.target.value)}
+                      placeholder="Ask a question..."
+                      className="w-full bg-slate-950 border border-slate-850 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 pr-12"
+                    />
+                    <button type="submit" className="absolute right-2 top-2 p-2 text-indigo-400 hover:text-indigo-300 transition-colors">
+                      <Send className="w-5 h-5" />
+                    </button>
+                  </form>
+                </div>
+              </div>
             </motion.div>
           )}
 
@@ -1012,11 +570,11 @@ export default function App() {
                 
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center font-bold text-white text-lg shadow-inner shrink-0">
-                    {currentUser ? currentUser.name.substring(0, 2).toUpperCase() : 'DG'}
+                    {currentUser ? currentUser.username.substring(0, 2).toUpperCase() : 'DG'}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">{currentUser?.name || 'Valued Client'}</h2>
+                      <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">{currentUser?.username || 'Valued Client'}</h2>
                       <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20 uppercase font-mono">
                         Active Profile
                       </span>
@@ -1169,17 +727,6 @@ export default function App() {
                   <div className="min-w-0">
                     <span className="text-xs font-bold text-white block">LamonPro</span>
                     <span className="text-[10px] text-slate-500 block truncate font-mono">mr.lamonpro@gmail.com</span>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => handleGoogleSSO('mat576907@gmail.com', 'Mat')}
-                  className="w-full p-3 bg-slate-950 hover:bg-slate-900 border border-slate-850 rounded-xl flex items-center gap-3 text-left transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-white text-xs">M</div>
-                  <div className="min-w-0">
-                    <span className="text-xs font-bold text-white block">Mat</span>
-                    <span className="text-[10px] text-slate-500 block truncate font-mono">mat576907@gmail.com</span>
                   </div>
                 </button>
 
